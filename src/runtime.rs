@@ -1,10 +1,9 @@
-use std::fmt::Debug;
 use std::{fs::File, io::BufReader};
 
 use serde::Deserialize;
 use serde_json::Value;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct Frame {
     #[serde(default, rename = "tweenEasing")]
     pub tween_easing: f64,
@@ -16,7 +15,7 @@ pub struct Frame {
     pub rotation: f64,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct Bone {
     pub name: String,
     #[serde(default, rename = "translateFrame")]
@@ -27,18 +26,18 @@ pub struct Bone {
     pub rotation_frame: Vec<Frame>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct Animation {
     pub name: String,
     pub bone: Vec<Bone>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct Armature {
     pub animation: Vec<Animation>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct Root {
     pub armature: Vec<Armature>,
 }
