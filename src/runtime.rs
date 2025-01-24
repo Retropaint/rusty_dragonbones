@@ -1,12 +1,55 @@
+use std::fmt::Debug;
 use std::{fs::File, io::BufReader};
 
+use serde::Deserialize;
 use serde_json::Value;
 
-pub fn load_dragon_bones() -> std::io::Result<Value> {
-    let file = File::open("ske.json")?;
+#[derive(Deserialize, Debug)]
+pub struct Frame {
+    #[serde(default, rename = "tweenEasing")]
+    pub tween_easing: f64,
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    #[serde(default)]
+    pub rotation: f64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Bone {
+    pub name: String,
+    #[serde(default, rename = "translateFrame")]
+    pub translate_frame: Vec<Frame>,
+    #[serde(default, rename = "scaleFrame")]
+    pub scale_frame: Vec<Frame>,
+    #[serde(default, rename = "rotationFrame")]
+    pub rotation_frame: Vec<Frame>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Animation {
+    pub name: String,
+    pub bone: Vec<Bone>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Armature {
+    pub animation: Vec<Animation>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Root {
+    pub armature: Vec<Armature>,
+}
+
+pub fn load_dragon_bones(path: &str) -> std::io::Result<Root> {
+    let file = File::open(path)?;
     let reader = BufReader::new(file);
-    let s: Value = serde_json::from_reader(reader)?;
-    Ok(s)
+    //let de = &mut serde_json::Deserializer::from_reader(reader);
+    //let s: Root = serde_path_to_error::deserialize(de).expect("");
+    let r: Root = serde_json::from_reader(reader).expect("");
+    Ok(r)
 }
 
 pub fn animate<T>(json: Value, model: T, callback: fn(v: Value, m: T)) {
