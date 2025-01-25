@@ -133,7 +133,12 @@ fn normalize_frames(armature: &mut Armature) {
 }
 
 // Animate Dragon Bones armature with the specified animation and frame data.
-pub fn animate(root: DragonBonesRoot, anim_idx: usize, frame: i32, frame_rate: i32) -> Vec<Prop> {
+pub fn animate(
+    root: &mut DragonBonesRoot,
+    anim_idx: usize,
+    frame: i32,
+    frame_rate: i32,
+) -> Vec<Prop> {
     let mut props: Vec<Prop> = Vec::new();
 
     for bone in &root.armature[0].animation[anim_idx].bone {
