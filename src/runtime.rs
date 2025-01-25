@@ -97,8 +97,12 @@ pub fn animate<T>(
 
 fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
+    // -1 means this anim frame's over, so just give its values directly
     if frame_idx == -1 {
-        return Vec2 { x: -1.0, y: -1.0 };
+        return Vec2 {
+            x: anim_frame.last().unwrap().x,
+            y: anim_frame.last().unwrap().y,
+        };
     }
 
     // since tweener's move_to() only increments in integers, the values are multiplied and then divided by ampl (amplifier)
@@ -124,11 +128,12 @@ fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
 
 fn animate_rotate(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> f64 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
+    // ditto animate_frame
     if frame_idx == -1 {
-        return -1.0;
+        return anim_frame.last().unwrap().rotate;
     }
 
-    // since tweener's move_to() only increments in integers, the values are multiplied and then divided by ampl (amplifier)
+    // dito animte_frame
     let ampl: f64 = 10.0;
 
     Tweener::linear(
