@@ -17,7 +17,7 @@ pub struct Frame {
 }
 
 #[derive(Deserialize)]
-pub struct Bone {
+pub struct AnimBone {
     pub name: String,
     #[serde(default, rename = "translateFrame")]
     pub translate_frame: Vec<Frame>,
@@ -28,15 +28,34 @@ pub struct Bone {
 }
 
 #[derive(Deserialize)]
+pub struct Bone {
+    pub name: String,
+    #[serde(default)]
+    pub parent: String,
+    pub transform: Transform,
+}
+
+#[derive(Deserialize)]
+pub struct Transform {
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    #[serde(default, rename = "skX")]
+    pub rot: f64,
+}
+
+#[derive(Deserialize)]
 pub struct Animation {
     pub name: String,
     pub duration: i32,
-    pub bone: Vec<Bone>,
+    pub bone: Vec<AnimBone>,
 }
 
 #[derive(Deserialize)]
 pub struct Armature {
     pub animation: Vec<Animation>,
+    pub bone: Vec<Bone>,
 }
 
 #[derive(Deserialize)]
@@ -67,14 +86,8 @@ pub fn load_dragon_bones(path: &str) -> std::io::Result<DragonBonesRoot> {
     Ok(r)
 }
 
-// Animate Dragon Bones armature with the speciifed animation and frame data. Pass your custom struct via the `model` generic so that it can be modified in the callback.
-pub fn animate<T>(
-    armature: &Armature,
-    anim_idx: usize,
-    frame: i32,
-    frame_rate: i32,
-    model: T,
-) -> Vec<Prop> {
+// Animate Dragon Bones armature with the speciifed animation and frame data.
+pub fn animate<T>(armature: &Armature, anim_idx: usize, frame: i32, frame_rate: i32) -> Vec<Prop> {
     let mut props: Vec<Prop> = Vec::new();
 
     for bone in &armature.animation[anim_idx].bone {
@@ -122,8 +135,8 @@ fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
     }
 }
 
-fn animate_rotate(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> f64 {
-    let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
+fn animate_rotate(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32) -> f64 {
+    let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, _frame_rate);
     // ditto animate_frame
     if frame_idx == -1 || anim_frame.len() == 1 {
         return anim_frame.last().unwrap().rotate;
@@ -142,7 +155,7 @@ fn animate_rotate(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> f64 {
 }
 
 // returns current anim frame, as well as the frame of it
-fn get_frame_idx(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> (i32, i32) {
+fn get_frame_idx(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32) -> (i32, i32) {
     let mut time: i32 = 0;
     let mut i: i32 = 0;
     for f in anim_frame {
