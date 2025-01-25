@@ -1,13 +1,10 @@
-mod runtime;
-
-pub use runtime::animate;
-pub use runtime::load_dragon_bones;
+pub mod runtime;
 
 #[cfg(test)]
 mod tests {
     use std::{thread, time::Duration};
 
-    use crate::{animate, load_dragon_bones, runtime::DragonBonesRoot};
+    use crate::runtime::{load_dragon_bones, DragonBonesRoot};
 
     #[test]
     fn load_armature() {
