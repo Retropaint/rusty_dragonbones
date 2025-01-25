@@ -87,39 +87,24 @@ pub fn animate<T>(
             rot: 1.0,
             name: "".to_string(),
         });
-        animate_frame(
-            &bone.translate_frame,
-            frame,
-            frame_rate,
-            &mut props.last_mut().unwrap().pos,
-        );
-        animate_frame(
-            &bone.scale_frame,
-            frame,
-            frame_rate,
-            &mut props.last_mut().unwrap().scale,
-        );
-        animate_rotate(
-            &bone.rotate_frame,
-            frame,
-            frame_rate,
-            &mut props.last_mut().unwrap().rot,
-        );
+        props.last_mut().unwrap().pos = animate_frame(&bone.translate_frame, frame, frame_rate);
+        props.last_mut().unwrap().scale = animate_frame(&bone.scale_frame, frame, frame_rate);
+        props.last_mut().unwrap().rot = animate_rotate(&bone.rotate_frame, frame, frame_rate);
     }
 
     callback(model, props);
 }
 
-fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32, vec2_p: &mut Vec2) {
+fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
     if frame_idx == -1 {
-        return;
+        return Vec2 { x: -1.0, y: -1.0 };
     }
 
     // since tweener's move_to() only increments in integers, the values are multiplied and then divided by ampl (amplifier)
     let ampl: f64 = 10.0;
 
-    *vec2_p = Vec2 {
+    Vec2 {
         x: (Tweener::linear(
             anim_frame[frame_idx as usize].x * ampl,
             anim_frame[(frame_idx + 1) as usize].x * ampl,
@@ -137,22 +122,22 @@ fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32, vec2_p: &
     }
 }
 
-fn animate_rotate(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32, float_p: &mut f64) {
+fn animate_rotate(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> f64 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
     if frame_idx == -1 {
-        return;
+        return -1.0;
     }
 
     // since tweener's move_to() only increments in integers, the values are multiplied and then divided by ampl (amplifier)
     let ampl: f64 = 10.0;
 
-    *float_p = Tweener::linear(
+    Tweener::linear(
         anim_frame[frame_idx as usize].rotate * ampl,
         anim_frame[(frame_idx + 1) as usize].rotate * ampl,
         anim_frame[frame_idx as usize].duration,
     )
     .move_to(curr_frame) as f64
-        / ampl;
+        / ampl
 }
 
 // returns current anim frame, as well as the frame of it
