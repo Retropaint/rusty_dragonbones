@@ -87,7 +87,7 @@ pub fn load_dragon_bones(path: &str) -> std::io::Result<DragonBonesRoot> {
 }
 
 // Animate Dragon Bones armature with the speciifed animation and frame data.
-pub fn animate<T>(armature: &Armature, anim_idx: usize, frame: i32, frame_rate: i32) -> Vec<Prop> {
+pub fn animate(armature: &Armature, anim_idx: usize, frame: i32, frame_rate: i32) -> Vec<Prop> {
     let mut props: Vec<Prop> = Vec::new();
 
     for bone in &armature.animation[anim_idx].bone {
