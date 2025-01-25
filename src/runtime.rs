@@ -7,11 +7,11 @@ use tween::Tweener;
 pub struct Frame {
     #[serde(default, rename = "tweenEasing")]
     pub tween_easing: f64,
-    #[serde(default)]
+    #[serde(default = "transform_default")]
     pub x: f64,
-    #[serde(default)]
+    #[serde(default = "transform_default")]
     pub y: f64,
-    #[serde(default)]
+    #[serde(default = "transform_default")]
     pub rotate: f64,
     pub duration: i32,
 }
@@ -41,8 +41,15 @@ pub struct Transform {
     pub x: f64,
     #[serde(default)]
     pub y: f64,
+
+    // this will probably backfire later
     #[serde(default, rename = "skX")]
     pub rot: f64,
+
+    #[serde(default = "scale_default")]
+    pub scX: f64,
+    #[serde(default = "scale_default")]
+    pub scY: f64,
 }
 
 #[derive(Deserialize)]
@@ -77,20 +84,59 @@ pub struct Prop {
     pub name: String,
 }
 
+fn transform_default() -> f64 {
+    return 99999.0;
+}
+fn scale_default() -> f64 {
+    return 1.0;
+}
+
 pub fn load_dragon_bones(path: &str) -> std::io::Result<DragonBonesRoot> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     //let de = &mut serde_json::Deserializer::from_reader(reader);
     //let s: Root = serde_path_to_error::deserialize(de).expect("");
-    let r: DragonBonesRoot = serde_json::from_reader(reader).expect("");
+    let mut r: DragonBonesRoot = serde_json::from_reader(reader).expect("");
+    normalize_frames(&mut r.armature[0]);
     Ok(r)
 }
 
-// Animate Dragon Bones armature with the speciifed animation and frame data.
-pub fn animate(armature: &Armature, anim_idx: usize, frame: i32, frame_rate: i32) -> Vec<Prop> {
+// Add back missing transform values in anim frames, using their initial ones
+fn normalize_frames(armature: &mut Armature) {
+    for a in &mut armature.animation {
+        let mut bi = 0;
+        for b in &mut a.bone {
+            for f in &mut b.translate_frame {
+                if f.x == transform_default() {
+                    f.x = armature.bone[bi].transform.x;
+                }
+                if f.y == transform_default() {
+                    f.y = armature.bone[bi].transform.y;
+                }
+            }
+            for f in &mut b.scale_frame {
+                if f.x == transform_default() {
+                    f.x = armature.bone[bi].transform.scX
+                }
+                if f.y == transform_default() {
+                    f.y = armature.bone[bi].transform.scY
+                }
+            }
+            for f in &mut b.rotate_frame {
+                if f.rotate == transform_default() {
+                    f.rotate = armature.bone[bi].transform.rot;
+                }
+            }
+            bi += 1;
+        }
+    }
+}
+
+// Animate Dragon Bones armature with the specified animation and frame data.
+pub fn animate(root: DragonBonesRoot, anim_idx: usize, frame: i32, frame_rate: i32) -> Vec<Prop> {
     let mut props: Vec<Prop> = Vec::new();
 
-    for bone in &armature.animation[anim_idx].bone {
+    for bone in &root.armature[0].animation[anim_idx].bone {
         props.push(Prop {
             pos: Vec2 { x: 0.0, y: 0.0 },
             scale: Vec2 { x: 0.0, y: 0.0 },
