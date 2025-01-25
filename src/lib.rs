@@ -9,7 +9,7 @@ mod tests {
 
     use crate::{
         animate, load_dragon_bones,
-        runtime::{Armature, DragonBonesRoot},
+        runtime::{Armature, DragonBonesRoot, Prop},
     };
 
     #[test]
@@ -17,15 +17,13 @@ mod tests {
         let r: DragonBonesRoot =
             load_dragon_bones("/Users/o/projects/code/rust/rusty_dragonbones/src/gopher_ske.json")
                 .expect("");
-        let test: i32 = 0;
+        let mut test: f64 = 0.0;
         let mut frame: i32 = 0;
         loop {
             thread::sleep(Duration::from_millis(100));
-            animate(&r.armature[0], 0, frame, 60, test, |test, m| {
-                for prop in m {
-                    println!("{}", prop.pos.x);
-                }
-            });
+            let props: Vec<Prop> = animate(&r.armature[0], 0, frame, 60, &mut test);
+            test = props[0].pos.x;
+            println!("{}", test);
             frame += 1;
         }
     }

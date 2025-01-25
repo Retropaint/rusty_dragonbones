@@ -67,38 +67,34 @@ pub fn load_dragon_bones(path: &str) -> std::io::Result<DragonBonesRoot> {
     Ok(r)
 }
 
+// Animate Dragon Bones armature with the speciifed animation and frame data. Pass your custom struct via the `model` generic so that it can be modified in the callback.
 pub fn animate<T>(
     armature: &Armature,
     anim_idx: usize,
     frame: i32,
     frame_rate: i32,
     model: T,
-    callback: fn(m: T, p: Vec<Prop>),
-) {
-    if frame > armature.animation[anim_idx].duration {
-        return;
-    }
-
+) -> Vec<Prop> {
     let mut props: Vec<Prop> = Vec::new();
+
     for bone in &armature.animation[anim_idx].bone {
         props.push(Prop {
             pos: Vec2 { x: 0.0, y: 0.0 },
             scale: Vec2 { x: 0.0, y: 0.0 },
             rot: 1.0,
-            name: "".to_string(),
+            name: bone.name.to_string(),
         });
         props.last_mut().unwrap().pos = animate_frame(&bone.translate_frame, frame, frame_rate);
         props.last_mut().unwrap().scale = animate_frame(&bone.scale_frame, frame, frame_rate);
         props.last_mut().unwrap().rot = animate_rotate(&bone.rotate_frame, frame, frame_rate);
     }
-
-    callback(model, props);
+    props
 }
 
 fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
     // -1 means this anim frame's over, so just give its values directly
-    if frame_idx == -1 {
+    if frame_idx == -1 || anim_frame.len() == 1 {
         return Vec2 {
             x: anim_frame.last().unwrap().x,
             y: anim_frame.last().unwrap().y,
@@ -129,11 +125,11 @@ fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
 fn animate_rotate(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> f64 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
     // ditto animate_frame
-    if frame_idx == -1 {
+    if frame_idx == -1 || anim_frame.len() == 1 {
         return anim_frame.last().unwrap().rotate;
     }
 
-    // dito animte_frame
+    // ditto animte_frame
     let ampl: f64 = 10.0;
 
     Tweener::linear(
