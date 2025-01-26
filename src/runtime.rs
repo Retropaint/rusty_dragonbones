@@ -7,11 +7,11 @@ use tween::Tweener;
 pub struct Frame {
     #[serde(default, rename = "tweenEasing")]
     pub tween_easing: f64,
-    #[serde(default)]
+    #[serde(default = "transform_default")]
     pub x: f64,
-    #[serde(default)]
+    #[serde(default = "transform_default")]
     pub y: f64,
-    #[serde(default)]
+    #[serde(default = "transform_default")]
     pub rotate: f64,
     pub duration: i32,
 }
@@ -105,6 +105,9 @@ macro_rules! inherit_prop {
     };
 }
 
+fn transform_default() -> f64 {
+    return 9999.0;
+}
 fn scale_default() -> f64 {
     return 1.0;
 }
@@ -114,8 +117,38 @@ pub fn load_dragon_bones(path: &str) -> std::io::Result<DragonBonesRoot> {
     let reader = BufReader::new(file);
     //let de = &mut serde_json::Deserializer::from_reader(reader);
     //let s: Root = serde_path_to_error::deserialize(de).expect("");
-    let r: DragonBonesRoot = serde_json::from_reader(reader).expect("");
+    let mut r: DragonBonesRoot = serde_json::from_reader(reader).expect("");
+    normalize_frames(&mut r.armature[0]);
     Ok(r)
+}
+
+/// Add back missing transform values in anim frames, using their initial ones.
+fn normalize_frames(armature: &mut Armature) {
+    for a in &mut armature.animation {
+        for b in &mut a.bone {
+            for f in &mut b.translate_frame {
+                if f.x == transform_default() {
+                    f.x = 0.0;
+                }
+                if f.y == transform_default() {
+                    f.y = 0.0;
+                }
+            }
+            for f in &mut b.scale_frame {
+                if f.x == transform_default() {
+                    f.x = 1.0;
+                }
+                if f.y == transform_default() {
+                    f.y = 1.0;
+                }
+            }
+            for f in &mut b.rotate_frame {
+                if f.rotate == transform_default() {
+                    f.rotate = 1.0;
+                }
+            }
+        }
+    }
 }
 
 /// Animate dragon bones armature with the specified animation and frame data.
