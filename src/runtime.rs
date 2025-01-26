@@ -141,23 +141,38 @@ pub fn animate(
 ) -> Vec<Prop> {
     let mut props: Vec<Prop> = Vec::new();
 
+    let mut bi = 0;
     for bone in &root.armature[0].animation[anim_idx].bone {
         props.push(Prop {
-            pos: Vec2 { x: 0.0, y: 0.0 },
-            scale: Vec2 { x: 0.0, y: 0.0 },
-            rot: 1.0,
+            pos: Vec2 {
+                x: root.armature[0].bone[bi].transform.x,
+                y: root.armature[0].bone[bi].transform.y,
+            },
+            scale: Vec2 {
+                x: root.armature[0].bone[bi].transform.scX,
+                y: root.armature[0].bone[bi].transform.scY,
+            },
+            rot: root.armature[0].bone[bi].transform.rot,
             name: bone.name.to_string(),
         });
-        props.last_mut().unwrap().pos = animate_frame(&bone.translate_frame, frame, frame_rate);
-        props.last_mut().unwrap().scale = animate_frame(&bone.scale_frame, frame, frame_rate);
-        props.last_mut().unwrap().rot = animate_rotate(&bone.rotate_frame, frame, frame_rate);
+        if bone.translate_frame.len() > 0 {
+            props.last_mut().unwrap().pos = animate_frame(&bone.translate_frame, frame, frame_rate);
+        }
+        if bone.scale_frame.len() > 0 {
+            props.last_mut().unwrap().scale = animate_frame(&bone.scale_frame, frame, frame_rate);
+        }
+        if bone.rotate_frame.len() > 0 {
+            props.last_mut().unwrap().rot = animate_rotate(&bone.rotate_frame, frame, frame_rate);
+        }
+        bi += 1;
     }
     props
 }
 
 fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
-    // -1 means this anim frame's over, so just give its values directly
+
+    // give values directly if this is either the only frame, or it's over
     if frame_idx == -1 || anim_frame.len() == 1 {
         return Vec2 {
             x: anim_frame.last().unwrap().x,
@@ -188,6 +203,7 @@ fn animate_frame(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
 
 fn animate_rotate(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32) -> f64 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, _frame_rate);
+
     // ditto animate_frame
     if frame_idx == -1 || anim_frame.len() == 1 {
         return anim_frame.last().unwrap().rotate;
