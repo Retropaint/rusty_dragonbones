@@ -1,6 +1,6 @@
 [package]
 name = "rusty_dragonbones"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 description = "DragonBones runtime for Rust"
 license = "MIT"
