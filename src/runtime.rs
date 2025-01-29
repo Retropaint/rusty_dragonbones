@@ -112,11 +112,12 @@ fn scale_default() -> f64 {
     return 1.0;
 }
 
-pub fn load_dragon_bones(path: &str) -> std::io::Result<DragonBonesRoot> {
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
+pub fn load_dragon_bones(zip_path: &str) -> std::io::Result<DragonBonesRoot> {
+    let file = File::open(zip_path)?;
+    let mut zip = zip::ZipArchive::new(file)?;
     //let de = &mut serde_json::Deserializer::from_reader(reader);
     //let s: Root = serde_path_to_error::deserialize(de).expect("");
+    let reader = zip.by_index(0).unwrap();
     let mut r: DragonBonesRoot = serde_json::from_reader(reader).expect("");
     normalize_frames(&mut r.armature[0]);
     Ok(r)
