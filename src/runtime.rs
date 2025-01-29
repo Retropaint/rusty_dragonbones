@@ -278,3 +278,16 @@ fn get_frame_idx(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32) -> (i32,
     }
     (-1, -1)
 }
+
+/// Generic helper to return an offset based on a pivot.
+/// Mainly used internally, but might help somewhere for you :)
+pub fn set_pivot(horizontal_offset: f64, vertical_offset: f64, angle: f64) {
+    let mut offset = Vec2::default();
+    let rad = angle * 3.14 / 180.;
+
+    offset.x -= rad.cos() * horizontal_offset;
+    offset.y -= rad.sin() * horizontal_offset;
+
+    offset.x -= (rad + (90. * 3.14 / 180.)).cos() * vertical_offset;
+    offset.y -= (rad + (90. * 3.14 / 180.)).sin() * vertical_offset;
+}
