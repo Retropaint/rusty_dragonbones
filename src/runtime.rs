@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader};
+use std::{cmp::min, fs::File, io::BufReader};
 
 use serde::Deserialize;
 use tween::Tweener;
@@ -72,7 +72,7 @@ pub struct DragonBonesRoot {
     pub frame_rate: i32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Vec2 {
     pub x: f64,
     pub y: f64,
@@ -90,6 +90,22 @@ pub struct Prop {
     pub pos: Vec2,
     pub scale: Vec2,
     pub rot: f64,
+
+    pub tex_size: Vec2,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct Texture {
+    #[serde(default, rename = "SubTexture")]
+    pub sub_texture: Vec<SubTexture>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct SubTexture {
+    #[serde(default, rename = "frameHeight")]
+    pub frame_height: f64,
+    #[serde(default, rename = "frameWidth")]
+    pub frame_width: f64,
 }
 
 /// Parameters: (prop1: Prop, prop2: Prop)
@@ -112,27 +128,26 @@ fn scale_default() -> f64 {
     return 1.0;
 }
 
-pub fn load_dragon_bones(zip_path: &str) -> std::io::Result<DragonBonesRoot> {
+pub fn load_dragon_bones(zip_path: &str) -> std::io::Result<(DragonBonesRoot, Texture)> {
     let file = File::open(zip_path)?;
     let mut zip = zip::ZipArchive::new(file)?;
-    //let de = &mut serde_json::Deserializer::from_reader(reader);
-    //let s: Root = serde_path_to_error::deserialize(de).expect("");
-    let reader = zip.by_index(0).unwrap();
-    let mut r: DragonBonesRoot = serde_json::from_reader(reader).expect("");
-    normalize_frames(&mut r.armature[0]);
-    Ok(r)
+    let mut root: DragonBonesRoot = serde_json::from_reader(zip.by_index(0).unwrap()).unwrap();
+    let tex: Texture = serde_json::from_reader(zip.by_index(2).unwrap()).unwrap();
+    normalize_frames(&mut root.armature[0]);
+    Ok((root, tex))
 }
 
 /// Add back missing transform values in anim frames, using their initial ones.
 fn normalize_frames(armature: &mut Armature) {
     for a in &mut armature.animation {
+        let mut bi = 0;
         for b in &mut a.bone {
             for f in &mut b.translate_frame {
                 if f.x == transform_default() {
-                    f.x = 0.0;
+                    f.x = 0.;
                 }
                 if f.y == transform_default() {
-                    f.y = 0.0;
+                    f.y = 0.;
                 }
             }
             for f in &mut b.scale_frame {
@@ -149,12 +164,14 @@ fn normalize_frames(armature: &mut Armature) {
                 }
             }
         }
+        bi += 1;
     }
 }
 
 /// Animate dragon bones armature with the specified animation and frame data.
 pub fn animate(
     root: &mut DragonBonesRoot,
+    tex: &Texture,
     anim_idx: usize,
     frame: i32,
     frame_rate: i32,
@@ -177,6 +194,11 @@ pub fn animate(
             name: bone.name.to_string(),
             parent_name: root.armature[0].bone[bi].parent.clone(),
             parent_idx: prop_by_name(root.armature[0].bone[bi].parent.clone(), &props),
+
+            tex_size: Vec2 {
+                x: tex.sub_texture[min(bi, tex.sub_texture.len() - 1)].frame_width,
+                y: tex.sub_texture[min(bi, tex.sub_texture.len() - 1)].frame_height,
+            },
         });
 
         // animate transforms
@@ -202,7 +224,6 @@ pub fn animate(
                 props[this_prop.parent_idx as usize]
             );
         }
-
         bi += 1;
     }
     props

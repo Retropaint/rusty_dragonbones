@@ -9,11 +9,16 @@ mod tests {
 
     #[test]
     fn load_armature() {
-        let mut r: DragonBonesRoot =
-            load_dragon_bones("/Users/o/downloads/gopher/gopher.zip").expect("");
-        let mut props = animate(&mut r, 0, 30, 0);
-        println!("{} {} {}", props[0].rot, props[0].pos.x, props[0].scale.x);
+        let (mut root, tex) = load_dragon_bones("/Users/o/downloads/dragon/dragon_2.zip").unwrap();
+        //println!("{}", root.armature[0].bone[1].transform.x);
+        let mut props = animate(&mut root, &tex, 0, 30, 0);
+        for p in props {
+            println!("{}", p.name);
+            if p.name == "legR" {
+                println!("{} {}", p.pos.x, p.pos.y);
+            }
+        }
         let mut test: f64 = 0.0;
-        let mut props = animate(&mut r, 0, 0, 60);
+        let mut props = animate(&mut root, &tex, 0, 0, 60);
     }
 }
