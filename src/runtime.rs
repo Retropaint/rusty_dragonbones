@@ -1,5 +1,9 @@
 use serde::Deserialize;
-use std::{f64::consts::PI, fs::File};
+use std::{
+    f64::consts::PI,
+    fs::File,
+    io::{BufReader, Read},
+};
 use tween::Tweener;
 
 #[derive(Deserialize, Clone)]
@@ -34,7 +38,7 @@ pub struct Bone {
     pub transform: Transform,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 pub struct Transform {
     #[serde(default)]
     pub x: f64,
@@ -79,13 +83,13 @@ pub struct Skin {
     name: String,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 pub struct SkinSlot {
     display: Vec<Display>,
     name: String,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 pub struct Display {
     name: String,
     transform: Transform,
@@ -113,12 +117,21 @@ pub struct Prop {
     /// index of the parent prop, relative to the vector containing this prop and it.
     pub parent_idx: i32,
 
+    pub tex_idx: i32,
+
+    /// Bone transforms
     pub pos: Vec2,
     pub scale: Vec2,
     pub rot: f64,
 
+    /// Texture transforms
+    /// These are for the singular image tied to the bone. Mutliple images in one bone are not supported.
     pub tex_size: Vec2,
     pub tex_pos: Vec2,
+    pub tex_rot: f64,
+
+    /// z-index. Lower values should render behind higher.
+    pub z: i32,
 }
 
 #[derive(Deserialize, Clone, Default)]
@@ -130,33 +143,14 @@ pub struct Texture {
 #[derive(Deserialize, Clone)]
 pub struct SubTexture {
     #[serde(default, rename = "frameHeight")]
-    pub frame_height: f64,
+    pub frame_height: i32,
     #[serde(default, rename = "frameWidth")]
-    pub frame_width: f64,
-    pub width: f64,
-    pub height: f64,
+    pub frame_width: i32,
+    pub width: i32,
+    pub height: i32,
+    pub x: i32,
+    pub y: i32,
     pub name: String,
-}
-
-/// Parameters: (prop1: Prop, prop2: Prop)
-/// Inherits transform values from prop2 into prop1.
-/// Useful for inheriting parent values into its child/children.
-macro_rules! inherit_prop {
-    ($prop1:expr, $prop2:expr) => {
-        let torad = PI / 180.;
-        let rotation = Vec2 {
-            x: $prop1.pos.x * ($prop2.rot * torad).cos()
-                + $prop1.pos.y * -($prop2.rot * torad).sin(),
-            y: $prop1.pos.x * ($prop2.rot * torad).sin()
-                + $prop1.pos.y * ($prop2.rot * torad).cos(),
-        };
-        $prop1.pos = rotation;
-        $prop1.pos.x += $prop2.pos.x;
-        $prop1.pos.y += $prop2.pos.y;
-        $prop1.scale.x *= $prop2.scale.x;
-        $prop1.scale.y *= $prop2.scale.y;
-        $prop1.rot += $prop2.rot;
-    };
 }
 
 fn transform_default() -> f64 {
@@ -166,16 +160,18 @@ fn scale_default() -> f64 {
     return 1.0;
 }
 
-pub fn load_dragon_bones(zip_path: &str) -> std::io::Result<(DragonBonesRoot, Texture)> {
-    let file = File::open(zip_path)?;
-    let mut zip = zip::ZipArchive::new(file)?;
-    let mut root: DragonBonesRoot = serde_json::from_reader(zip.by_index(0).unwrap()).unwrap();
-    let tex: Texture = serde_json::from_reader(zip.by_index(2).unwrap()).unwrap();
+/// Load a DragonBones model via file paths to the *ske.json and *tex.json.
+pub fn load_dragonbones_from_str(
+    ske_str: &mut String,
+    tex_str: &mut String,
+) -> std::io::Result<(DragonBonesRoot, Texture)> {
+    let mut root: DragonBonesRoot = serde_json::from_str(ske_str).unwrap();
+    let tex: Texture = serde_json::from_str(tex_str).unwrap();
     normalize_frames(&mut root.armature[0]);
     Ok((root, tex))
 }
 
-/// Add back missing transform values in anim frames, using their initial ones.
+// add back missing transform values in anim frames, using their initial ones
 fn normalize_frames(armature: &mut Armature) {
     for a in &mut armature.animation {
         for b in &mut a.bone {
@@ -204,7 +200,7 @@ fn normalize_frames(armature: &mut Armature) {
     }
 }
 
-/// Animate dragon bones armature with the specified animation and frame data.
+/// Animate DragonBones armature with the specified animation and frame data.
 pub fn animate(
     root: &mut DragonBonesRoot,
     tex: &Texture,
@@ -217,27 +213,31 @@ pub fn animate(
     let mut bi = 0;
     for anim_bone in &root.armature[0].animation[anim_idx].bone {
         let mut this_tex = SubTexture {
-            frame_width: 0.,
-            frame_height: 0.,
-            width: 0.,
-            height: 0.,
+            frame_width: 0,
+            frame_height: 0,
+            width: 0,
+            height: 0,
             name: "".to_string(),
+            x: 0,
+            y: 0,
         };
         let mut this_tex_pos = Vec2::default();
+        let mut this_tex_idx = 0;
+        let mut sk = &SkinSlot::default();
 
+        // ignore 0 bi since that's the root
         if bi != 0 {
-            // get skin slot & its transforms
-            let sk = &root.armature[0].skin[0].slot
+            sk = &root.armature[0].skin[0].slot
                 [idx_from_name(&anim_bone.name, &root.armature[0].skin[0].slot) as usize];
+
             this_tex_pos = Vec2 {
                 x: sk.display[0].transform.x,
                 y: sk.display[0].transform.y,
             };
 
             // get corresponding texture
-            this_tex = tex.sub_texture
-                [idx_from_name(&sk.display[0].name, &tex.sub_texture) as usize]
-                .clone();
+            this_tex_idx = idx_from_name(&sk.display[0].name, &tex.sub_texture) as usize;
+            this_tex = tex.sub_texture[this_tex_idx].clone();
         }
 
         let bone =
@@ -258,20 +258,42 @@ pub fn animate(
             parent_name: bone.parent.clone(),
             parent_idx: idx_from_name(&bone.parent, &props),
 
+            tex_idx: this_tex_idx as i32,
+
             tex_size: Vec2 {
-                x: this_tex.width,
-                y: this_tex.height,
+                x: this_tex.width as f64,
+                y: this_tex.height as f64,
             },
             tex_pos: this_tex_pos,
+            tex_rot: if sk.display.len() > 0 {
+                sk.display[0].transform.rot
+            } else {
+                0.
+            },
+
+            z: if bi > 0 {
+                root.armature[0].slot
+                    [idx_from_name(&anim_bone.name, &root.armature[0].slot) as usize]
+                    .z
+            } else {
+                0
+            },
         });
 
-        // inherit transform from parent
         let this_prop = props.last_mut().unwrap().clone();
+
+        // inherit transform from parent
         if this_prop.parent_name != "" {
-            inherit_prop!(
-                props.last_mut().unwrap(),
-                props[this_prop.parent_idx as usize]
-            );
+            let parent = props[this_prop.parent_idx as usize].clone();
+            props.last_mut().unwrap().pos.x = this_prop.pos.x * (parent.rot * PI / 180.).cos()
+                + this_prop.pos.y * -(parent.rot * PI / 180.).sin();
+            props.last_mut().unwrap().pos.y = this_prop.pos.x * (parent.rot * PI / 180.).sin()
+                + this_prop.pos.y * (parent.rot * PI / 180.).cos();
+            props.last_mut().unwrap().pos.x += parent.pos.x;
+            props.last_mut().unwrap().pos.y += parent.pos.y;
+            props.last_mut().unwrap().scale.x *= parent.scale.x;
+            props.last_mut().unwrap().scale.y *= parent.scale.y;
+            props.last_mut().unwrap().rot += parent.rot;
         }
 
         // animate transforms
@@ -298,7 +320,6 @@ pub fn animate(
 trait SearchedVector {
     fn name(&self) -> String;
 }
-
 macro_rules! searchedVector {
     ($type:ty) => {
         impl SearchedVector for $type {
@@ -308,7 +329,6 @@ macro_rules! searchedVector {
         }
     };
 }
-
 searchedVector!(Slot);
 searchedVector!(SkinSlot);
 searchedVector!(Prop);
@@ -316,7 +336,6 @@ searchedVector!(SubTexture);
 searchedVector!(Bone);
 
 // helpers to get stuff by name
-// could probably be simplified to a single fn with a generic but I'm not learning that
 fn idx_from_name<T: SearchedVector>(name: &String, slot: &Vec<T>) -> i32 {
     let mut i = 0;
     for s in slot {
@@ -385,4 +404,17 @@ fn get_frame_idx(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32) -> (i32,
         i += 1;
     }
     (-1, -1)
+}
+
+/// Prepare texture for rotation
+///
+/// If the texture's rotation is done via adding up it's own as well as it's bone's, this will help adjust the texture's position such that it will end up in the right place after rotation is applied.
+pub fn prep_tex_for_rot(prop: &mut Prop) {
+    let rotation = Vec2 {
+        x: prop.tex_pos.x * (-prop.tex_rot * PI / 180.).cos()
+            + prop.tex_pos.y * -(-prop.tex_rot * PI / 180.).sin(),
+        y: prop.tex_pos.x * (-prop.tex_rot * PI / 180.).sin()
+            + prop.tex_pos.y * (-prop.tex_rot * PI / 180.).cos(),
+    };
+    prop.tex_pos = rotation;
 }
