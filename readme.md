@@ -29,6 +29,5 @@ for p in props {
 This is a simplified example. In practice, you will most likely have to adjust the values here and there. 
 
 ## Missing Features
-* Only reads and makes use of `*ske.json files
 * Only does linear tweening
-* Very bare-bones; not much for quality-of-life features
+* Only supports one image per bone
