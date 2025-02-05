@@ -295,10 +295,14 @@ pub fn animate(
             props.last_mut().unwrap().scale.y *= parent.scale.y;
             props.last_mut().unwrap().rot += parent.rot;
         }
-
         // animate transforms
         if anim_bone.translate_frame.len() > 0 {
-            let pos = animate_vec2(&anim_bone.translate_frame, frame, frame_rate);
+            let pos = animate_pos(
+                props.last().unwrap().rot,
+                &anim_bone.translate_frame,
+                frame,
+                frame_rate,
+            );
             props.last_mut().unwrap().pos.x += pos.x;
             props.last_mut().unwrap().pos.y += pos.y;
         }
@@ -370,6 +374,37 @@ fn animate_vec2(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
             anim_frame[frame_idx as usize].y,
             anim_frame[(frame_idx + 1) as usize].y,
             anim_frame[frame_idx as usize].duration,
+        )
+        .move_to(curr_frame) as f64),
+    }
+}
+
+// animate a frame that returns a Vec2
+fn animate_pos(rot: f64, anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
+    let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
+
+    // give values directly if this is either the only frame, or it's over
+    if frame_idx == -1 || anim_frame.len() == 1 {
+        return Vec2 {
+            x: anim_frame.last().unwrap().x,
+            y: anim_frame.last().unwrap().y,
+        };
+    }
+
+    let f1 = &anim_frame[frame_idx as usize];
+    let f2 = &anim_frame[frame_idx as usize + 1];
+
+    Vec2 {
+        x: (Tweener::linear(
+            f1.x * (-rot * PI / 180.).cos() + f1.y * -(-rot * PI / 180.).sin(),
+            f2.x * (-rot * PI / 180.).cos() + f2.y * -(-rot * PI / 180.).sin(),
+            f1.duration,
+        )
+        .move_to(curr_frame) as f64),
+        y: (Tweener::linear(
+            f1.x * (-rot * PI / 180.).sin() + f1.y * (-rot * PI / 180.).cos(),
+            f2.x * (-rot * PI / 180.).sin() + f2.y * (-rot * PI / 180.).cos(),
+            f1.duration,
         )
         .move_to(curr_frame) as f64),
     }
