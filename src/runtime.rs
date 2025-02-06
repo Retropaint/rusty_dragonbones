@@ -161,7 +161,7 @@ fn scale_default() -> f64 {
 }
 
 /// Load a DragonBones model via file paths to the *ske.json and *tex.json.
-pub fn load_dragonbones_from_str(
+pub fn load_dragonbones(
     ske_str: &mut String,
     tex_str: &mut String,
 ) -> std::io::Result<(DragonBonesRoot, Texture)> {
