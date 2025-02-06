@@ -281,10 +281,12 @@ pub fn animate(
         });
 
         let this_prop = props.last_mut().unwrap().clone();
+        let mut parent_rot = 0.;
 
         // inherit transform from parent
         if this_prop.parent_name != "" {
             let parent = props[this_prop.parent_idx as usize].clone();
+            parent_rot = parent.rot;
             props.last_mut().unwrap().pos.x = this_prop.pos.x * (parent.rot * PI / 180.).cos()
                 + this_prop.pos.y * -(parent.rot * PI / 180.).sin();
             props.last_mut().unwrap().pos.y = this_prop.pos.x * (parent.rot * PI / 180.).sin()
@@ -295,14 +297,10 @@ pub fn animate(
             props.last_mut().unwrap().scale.y *= parent.scale.y;
             props.last_mut().unwrap().rot += parent.rot;
         }
+
         // animate transforms
         if anim_bone.translate_frame.len() > 0 {
-            let pos = animate_pos(
-                props.last().unwrap().rot,
-                &anim_bone.translate_frame,
-                frame,
-                frame_rate,
-            );
+            let pos = animate_pos(-parent_rot, &anim_bone.translate_frame, frame, frame_rate);
             props.last_mut().unwrap().pos.x += pos.x;
             props.last_mut().unwrap().pos.y += pos.y;
         }
