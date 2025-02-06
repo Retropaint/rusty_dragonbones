@@ -206,7 +206,6 @@ pub fn animate(
     tex: &Texture,
     anim_idx: usize,
     frame: i32,
-    frame_rate: i32,
 ) -> Vec<Prop> {
     let mut props: Vec<Prop> = Vec::new();
 
@@ -300,18 +299,17 @@ pub fn animate(
 
         // animate transforms
         if anim_bone.translate_frame.len() > 0 {
-            let pos = animate_pos(-parent_rot, &anim_bone.translate_frame, frame, frame_rate);
+            let pos = animate_pos(-parent_rot, &anim_bone.translate_frame, frame, 0);
             props.last_mut().unwrap().pos.x += pos.x;
             props.last_mut().unwrap().pos.y += pos.y;
         }
         if anim_bone.scale_frame.len() > 0 {
-            let scale = animate_vec2(&anim_bone.scale_frame, frame, frame_rate);
+            let scale = animate_vec2(&anim_bone.scale_frame, frame, 0);
             props.last_mut().unwrap().scale.x *= scale.x;
             props.last_mut().unwrap().scale.y *= scale.y;
         }
         if anim_bone.rotate_frame.len() > 0 {
-            props.last_mut().unwrap().rot +=
-                animate_float(&anim_bone.rotate_frame, frame, frame_rate);
+            props.last_mut().unwrap().rot += animate_float(&anim_bone.rotate_frame, frame, 0);
         }
 
         bi += 1;
