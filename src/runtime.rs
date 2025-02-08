@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use std::{
+    cmp::{max, min},
     f64::consts::PI,
     fs::File,
     io::{BufReader, Read},
@@ -70,11 +71,14 @@ pub struct Armature {
     pub skin: Vec<Skin>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 pub struct Slot {
     pub name: String,
-    #[serde(default)]
+    #[serde(default = "i32_default")]
     pub z: i32,
+    pub parent: String,
+    #[serde(default, rename = "displayIndex")]
+    pub display_index: i32,
 }
 
 #[derive(Deserialize, Clone)]
@@ -159,6 +163,9 @@ fn transform_default() -> f64 {
 fn scale_default() -> f64 {
     return 1.0;
 }
+fn i32_default() -> i32 {
+    return 0;
+}
 
 /// Load a DragonBones model via file paths to the *ske.json and *tex.json.
 pub fn load_dragonbones(
@@ -222,20 +229,23 @@ pub fn animate(
         };
         let mut this_tex_pos = Vec2::default();
         let mut this_tex_idx = 0;
-        let mut sk = &SkinSlot::default();
+        let mut slot = &Slot::default();
+        let mut skin_slot = &SkinSlot::default();
 
-        // ignore 0 bi since that's the root
-        if bi != 0 {
-            sk = &root.armature[0].skin[0].slot
-                [idx_from_name(&anim_bone.name, &root.armature[0].skin[0].slot) as usize];
+        // get bone's texture & it's data
+        let si = parent_of_slot(&anim_bone.name, &root.armature[0].slot);
+        if si != -1 {
+            slot = &root.armature[0].slot[si as usize];
+            skin_slot = &root.armature[0].skin[0].slot
+                [idx_from_name(&slot.name, &root.armature[0].skin[0].slot) as usize];
 
             this_tex_pos = Vec2 {
-                x: sk.display[0].transform.x,
-                y: sk.display[0].transform.y,
+                x: skin_slot.display[0].transform.x,
+                y: skin_slot.display[0].transform.y,
             };
 
             // get corresponding texture
-            this_tex_idx = idx_from_name(&sk.display[0].name, &tex.sub_texture) as usize;
+            this_tex_idx = idx_from_name(&skin_slot.display[0].name, &tex.sub_texture) as usize;
             this_tex = tex.sub_texture[this_tex_idx].clone();
         }
 
@@ -264,16 +274,14 @@ pub fn animate(
                 y: this_tex.height as f64,
             },
             tex_pos: this_tex_pos,
-            tex_rot: if sk.display.len() > 0 {
-                sk.display[0].transform.rot
+            tex_rot: if skin_slot.display.len() > 0 {
+                skin_slot.display[0].transform.rot
             } else {
                 0.
             },
 
-            z: if bi > 0 {
-                root.armature[0].slot
-                    [idx_from_name(&anim_bone.name, &root.armature[0].slot) as usize]
-                    .z
+            z: if bi > 0 && this_tex.name != "" {
+                slot.z
             } else {
                 0
             },
@@ -347,6 +355,22 @@ fn idx_from_name<T: SearchedVector>(name: &String, slot: &Vec<T>) -> i32 {
     return -1;
 }
 
+fn parent_of_slot(name: &String, slot: &Vec<Slot>) -> i32 {
+    let mut i = 0;
+    for s in slot {
+        // DragonBones ignores undisplayed slots when connecting with bones
+        if s.display_index == -1 {
+            i += 1;
+            continue;
+        }
+        if s.parent == *name {
+            return i;
+        }
+        i += 1;
+    }
+    return -1;
+}
+
 // animate a frame that returns a Vec2
 fn animate_vec2(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
@@ -359,16 +383,18 @@ fn animate_vec2(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
         };
     }
 
+    let next_frame_idx = min(frame_idx as usize + 1, anim_frame.len() - 1);
+
     Vec2 {
         x: (Tweener::linear(
             anim_frame[frame_idx as usize].x,
-            anim_frame[(frame_idx + 1) as usize].x,
+            anim_frame[next_frame_idx].x,
             anim_frame[frame_idx as usize].duration,
         )
         .move_to(curr_frame) as f64),
         y: (Tweener::linear(
             anim_frame[frame_idx as usize].y,
-            anim_frame[(frame_idx + 1) as usize].y,
+            anim_frame[next_frame_idx].y,
             anim_frame[frame_idx as usize].duration,
         )
         .move_to(curr_frame) as f64),
@@ -388,7 +414,7 @@ fn animate_pos(rot: f64, anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -
     }
 
     let f1 = &anim_frame[frame_idx as usize];
-    let f2 = &anim_frame[frame_idx as usize + 1];
+    let f2 = &anim_frame[min(frame_idx as usize + 1, anim_frame.len() - 1)];
 
     Vec2 {
         x: (Tweener::linear(
@@ -415,9 +441,11 @@ fn animate_float(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32) -> f64 {
         return anim_frame.last().unwrap().rotate;
     }
 
+    let next_frame_idx = min(frame_idx as usize + 1, anim_frame.len() - 1);
+
     Tweener::linear(
         anim_frame[frame_idx as usize].rotate,
-        anim_frame[(frame_idx + 1) as usize].rotate,
+        anim_frame[next_frame_idx].rotate,
         anim_frame[frame_idx as usize].duration,
     )
     .move_to(curr_frame) as f64
