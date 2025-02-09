@@ -97,6 +97,16 @@ pub struct SkinSlot {
 pub struct Display {
     name: String,
     transform: Transform,
+
+    #[serde(default)]
+    triangles: Vec<f64>,
+
+    #[serde(default)]
+    vertices: Vec<f64>,
+    #[serde(default)]
+    uvs: Vec<f64>,
+    #[serde(default)]
+    edges: Vec<f64>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -112,14 +122,18 @@ pub struct Vec2 {
     pub y: f64,
 }
 
+#[derive(Clone, Copy, Default)]
+pub struct Tri {
+    pub v1: i32,
+    pub v2: i32,
+    pub v3: i32,
+}
+
 /// Returned from animate(), providing all animation data of a single bone (and then some) in a single frame.
 #[derive(Clone)]
 pub struct Prop {
     pub name: String,
     pub parent_name: String,
-
-    /// index of the parent prop, relative to the vector containing this prop and it.
-    pub parent_idx: i32,
 
     pub tex_idx: i32,
 
@@ -133,6 +147,11 @@ pub struct Prop {
     pub tex_size: Vec2,
     pub tex_pos: Vec2,
     pub tex_rot: f64,
+
+    /// Mesh data
+    pub verts: Vec<Vec2>,
+    pub tris: Vec<Tri>,
+    pub uvs: Vec<Vec2>,
 
     /// z-index. Lower values should render behind higher.
     pub z: i32,
@@ -218,81 +237,17 @@ pub fn animate(
 
     let mut bi = 0;
     for anim_bone in &root.armature[0].animation[anim_idx].bone {
-        let mut this_tex = SubTexture {
-            frame_width: 0,
-            frame_height: 0,
-            width: 0,
-            height: 0,
-            name: "".to_string(),
-            x: 0,
-            y: 0,
-        };
-        let mut this_tex_pos = Vec2::default();
-        let mut this_tex_idx = 0;
-        let mut slot = &Slot::default();
-        let mut skin_slot = &SkinSlot::default();
-
-        // get bone's texture & it's data
-        let si = parent_of_slot(&anim_bone.name, &root.armature[0].slot);
-        if si != -1 {
-            slot = &root.armature[0].slot[si as usize];
-            skin_slot = &root.armature[0].skin[0].slot
-                [idx_from_name(&slot.name, &root.armature[0].skin[0].slot) as usize];
-
-            this_tex_pos = Vec2 {
-                x: skin_slot.display[0].transform.x,
-                y: skin_slot.display[0].transform.y,
-            };
-
-            // get corresponding texture
-            this_tex_idx = idx_from_name(&skin_slot.display[0].name, &tex.sub_texture) as usize;
-            this_tex = tex.sub_texture[this_tex_idx].clone();
-        }
-
         let bone =
             &root.armature[0].bone[idx_from_name(&anim_bone.name, &root.armature[0].bone) as usize];
-
-        props.push(Prop {
-            pos: Vec2 {
-                x: bone.transform.x,
-                y: bone.transform.y,
-            },
-            scale: Vec2 {
-                x: bone.transform.sc_x,
-                y: bone.transform.sc_y,
-            },
-            rot: bone.transform.rot,
-
-            name: anim_bone.name.to_string(),
-            parent_name: bone.parent.clone(),
-            parent_idx: idx_from_name(&bone.parent, &props),
-
-            tex_idx: this_tex_idx as i32,
-
-            tex_size: Vec2 {
-                x: this_tex.width as f64,
-                y: this_tex.height as f64,
-            },
-            tex_pos: this_tex_pos,
-            tex_rot: if skin_slot.display.len() > 0 {
-                skin_slot.display[0].transform.rot
-            } else {
-                0.
-            },
-
-            z: if bi > 0 && this_tex.name != "" {
-                slot.z
-            } else {
-                0
-            },
-        });
+        props.push(create_prop(bone, tex, &root.armature[0]));
 
         let this_prop = props.last_mut().unwrap().clone();
         let mut parent_rot = 0.;
 
         // inherit transform from parent
         if this_prop.parent_name != "" {
-            let parent = props[this_prop.parent_idx as usize].clone();
+            let parent =
+                props[idx_from_name(&props.last().unwrap().parent_name, &props) as usize].clone();
             parent_rot = parent.rot;
             props.last_mut().unwrap().pos.x = this_prop.pos.x * (parent.rot * PI / 180.).cos()
                 + this_prop.pos.y * -(parent.rot * PI / 180.).sin();
@@ -307,7 +262,7 @@ pub fn animate(
 
         // animate transforms
         if anim_bone.translate_frame.len() > 0 {
-            let pos = animate_pos(-parent_rot, &anim_bone.translate_frame, frame, 0);
+            let pos = animate_translate(-parent_rot, &anim_bone.translate_frame, frame, 0);
             props.last_mut().unwrap().pos.x += pos.x;
             props.last_mut().unwrap().pos.y += pos.y;
         }
@@ -320,9 +275,125 @@ pub fn animate(
             props.last_mut().unwrap().rot += animate_float(&anim_bone.rotate_frame, frame, 0);
         }
 
+        // animate mesh
+
         bi += 1;
     }
     props
+}
+
+fn create_prop(bone: &Bone, tex: &Texture, armature: &Armature) -> Prop {
+    let mut this_tex = SubTexture {
+        frame_width: 0,
+        frame_height: 0,
+        width: 0,
+        height: 0,
+        name: "".to_string(),
+        x: 0,
+        y: 0,
+    };
+    let mut this_tex_pos = Vec2::default();
+    let mut this_tex_idx = 0;
+    let mut slot = &Slot::default();
+    let mut skin_slot = &SkinSlot::default();
+
+    // get bone's texture & it's data
+    let si = parent_of_slot(&bone.name, &armature.slot);
+    if si != -1 {
+        slot = &armature.slot[si as usize];
+        skin_slot =
+            &armature.skin[0].slot[idx_from_name(&slot.name, &armature.skin[0].slot) as usize];
+
+        this_tex_pos = Vec2 {
+            x: skin_slot.display[0].transform.x,
+            y: skin_slot.display[0].transform.y,
+        };
+
+        // get corresponding texture
+        this_tex_idx = idx_from_name(&skin_slot.display[0].name, &tex.sub_texture) as usize;
+        this_tex = tex.sub_texture[this_tex_idx].clone();
+    }
+
+    // format verts, tris and uvs
+    let mut f_verts: Vec<Vec2> = vec![];
+    let mut f_uvs: Vec<Vec2> = vec![];
+    let mut f_tris: Vec<Tri> = vec![];
+    let mut i: i32 = 0;
+    if skin_slot.display.len() > 0 {
+        for v in &skin_slot.display[0].vertices {
+            if i % 2 == 0 {
+                f_verts.push(Vec2 { x: *v, y: 0. });
+            } else {
+                f_verts[i as usize / 2].y = *v;
+            }
+            i += 1;
+        }
+
+        i = 0;
+        for v in &skin_slot.display[0].uvs {
+            if i % 2 == 0 {
+                f_uvs.push(Vec2 { x: *v, y: 0. });
+            } else {
+                f_uvs[i as usize / 2].y = *v;
+            }
+            i += 1;
+        }
+
+        i = 0;
+        let mut ki = 0;
+        for v in &skin_slot.display[0].triangles {
+            if ki == 0 {
+                f_tris.push(Tri {
+                    v1: *v as i32,
+                    v2: 0,
+                    v3: 0,
+                })
+            } else if ki == 1 {
+                f_tris[i as usize].v2 = *v as i32;
+            } else {
+                f_tris[i as usize].v3 = *v as i32;
+                i += 1
+            }
+            ki += 1;
+            if ki == 3 {
+                ki = 0;
+            }
+        }
+    }
+
+    Prop {
+        pos: Vec2 {
+            x: bone.transform.x,
+            y: bone.transform.y,
+        },
+        scale: Vec2 {
+            x: bone.transform.sc_x,
+            y: bone.transform.sc_y,
+        },
+        rot: bone.transform.rot,
+
+        name: bone.name.to_string(),
+        parent_name: bone.parent.clone(),
+
+        tex_idx: this_tex_idx as i32,
+
+        tex_size: Vec2 {
+            x: this_tex.width as f64,
+            y: this_tex.height as f64,
+        },
+        tex_pos: this_tex_pos,
+        tex_rot: if skin_slot.display.len() > 0 {
+            skin_slot.display[0].transform.rot
+        } else {
+            0.
+        },
+
+        z: if this_tex.name != "" { slot.z } else { 0 },
+
+        verts: f_verts,
+        uvs: f_uvs,
+        tris: f_tris,
+    }
 }
 
 trait SearchedVector {
@@ -402,7 +473,7 @@ fn animate_vec2(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
 }
 
 // animate a frame that returns a Vec2
-fn animate_pos(rot: f64, anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
+fn animate_translate(rot: f64, anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
     let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
 
     // give values directly if this is either the only frame, or it's over
