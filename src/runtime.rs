@@ -232,10 +232,10 @@ pub fn animate(
     tex: &Texture,
     anim_idx: usize,
     frame: i32,
+    speed: i32,
 ) -> Vec<Prop> {
     let mut props: Vec<Prop> = Vec::new();
 
-    let mut bi = 0;
     for anim_bone in &root.armature[0].animation[anim_idx].bone {
         let bone =
             &root.armature[0].bone[idx_from_name(&anim_bone.name, &root.armature[0].bone) as usize];
@@ -262,18 +262,20 @@ pub fn animate(
 
         // animate transforms
         if anim_bone.translate_frame.len() > 0 {
-            let pos = animate_translate(-parent_rot, &anim_bone.translate_frame, frame, 0);
+            let pos = animate_translate(-parent_rot, &anim_bone.translate_frame, frame, 0, speed);
             props.last_mut().unwrap().pos.x += pos.x;
             props.last_mut().unwrap().pos.y += pos.y;
         }
         if anim_bone.scale_frame.len() > 0 {
-            let scale = animate_vec2(&anim_bone.scale_frame, frame, 0);
+            let scale = animate_vec2(&anim_bone.scale_frame, frame, 0, speed);
             props.last_mut().unwrap().scale.x *= scale.x;
             props.last_mut().unwrap().scale.y *= scale.y;
         }
         if anim_bone.rotate_frame.len() > 0 {
-            props.last_mut().unwrap().rot += animate_float(&anim_bone.rotate_frame, frame, 0);
+            props.last_mut().unwrap().rot +=
+                animate_float(&anim_bone.rotate_frame, frame, 0, speed);
         }
+    }
 
         // animate mesh
 
@@ -390,6 +392,7 @@ fn create_prop(bone: &Bone, tex: &Texture, armature: &Armature) -> Prop {
 
         z: if this_tex.name != "" { slot.z } else { 0 },
 
+        is_mesh: true,
         verts: f_verts,
         uvs: f_uvs,
         tris: f_tris,
@@ -443,8 +446,8 @@ fn parent_of_slot(name: &String, slot: &Vec<Slot>) -> i32 {
 }
 
 // animate a frame that returns a Vec2
-fn animate_vec2(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
-    let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
+fn animate_vec2(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32, speed: i32) -> Vec2 {
+    let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, speed);
 
     // give values directly if this is either the only frame, or it's over
     if frame_idx == -1 || anim_frame.len() == 1 {
@@ -457,24 +460,30 @@ fn animate_vec2(anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
     let next_frame_idx = min(frame_idx as usize + 1, anim_frame.len() - 1);
 
     Vec2 {
-        x: (Tweener::linear(
+        x: Tweener::linear(
             anim_frame[frame_idx as usize].x,
             anim_frame[next_frame_idx].x,
-            anim_frame[frame_idx as usize].duration,
+            anim_frame[frame_idx as usize].duration * speed,
         )
-        .move_to(curr_frame) as f64),
-        y: (Tweener::linear(
+        .move_to(curr_frame) as f64,
+        y: Tweener::linear(
             anim_frame[frame_idx as usize].y,
             anim_frame[next_frame_idx].y,
-            anim_frame[frame_idx as usize].duration,
+            anim_frame[frame_idx as usize].duration * speed,
         )
-        .move_to(curr_frame) as f64),
+        .move_to(curr_frame) as f64,
     }
 }
 
 // animate a frame that returns a Vec2
-fn animate_translate(rot: f64, anim_frame: &Vec<Frame>, frame: i32, frame_rate: i32) -> Vec2 {
-    let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, frame_rate);
+fn animate_translate(
+    rot: f64,
+    anim_frame: &Vec<Frame>,
+    frame: i32,
+    frame_rate: i32,
+    speed: i32,
+) -> Vec2 {
+    let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, speed);
 
     // give values directly if this is either the only frame, or it's over
     if frame_idx == -1 || anim_frame.len() == 1 {
@@ -491,21 +500,21 @@ fn animate_translate(rot: f64, anim_frame: &Vec<Frame>, frame: i32, frame_rate: 
         x: (Tweener::linear(
             f1.x * (-rot * PI / 180.).cos() + f1.y * -(-rot * PI / 180.).sin(),
             f2.x * (-rot * PI / 180.).cos() + f2.y * -(-rot * PI / 180.).sin(),
-            f1.duration,
+            f1.duration * speed,
         )
         .move_to(curr_frame) as f64),
         y: (Tweener::linear(
             f1.x * (-rot * PI / 180.).sin() + f1.y * (-rot * PI / 180.).cos(),
             f2.x * (-rot * PI / 180.).sin() + f2.y * (-rot * PI / 180.).cos(),
-            f1.duration,
+            f1.duration * speed,
         )
         .move_to(curr_frame) as f64),
     }
 }
 
 // animate a frame that returns a float
-fn animate_float(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32) -> f64 {
-    let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, _frame_rate);
+fn animate_float(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32, speed: i32) -> f64 {
+    let (frame_idx, curr_frame) = get_frame_idx(anim_frame, frame, speed);
 
     // ditto animate_frame
     if frame_idx == -1 || anim_frame.len() == 1 {
@@ -517,20 +526,35 @@ fn animate_float(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32) -> f64 {
     Tweener::linear(
         anim_frame[frame_idx as usize].rotate,
         anim_frame[next_frame_idx].rotate,
-        anim_frame[frame_idx as usize].duration,
+        anim_frame[frame_idx as usize].duration * speed,
     )
     .move_to(curr_frame) as f64
 }
 
+trait AnimatedFrame {
+    fn duration(&self) -> i32;
+}
+macro_rules! animatedFrame {
+    ($type:ty) => {
+        impl AnimatedFrame for $type {
+            fn duration(&self) -> i32 {
+                return self.duration.clone();
+            }
+        }
+    };
+}
+animatedFrame!(Frame);
+animatedFrame!(MeshFrame);
+
 // returns current anim frame, as well as the frame of it
-fn get_frame_idx(anim_frame: &Vec<Frame>, frame: i32, _frame_rate: i32) -> (i32, i32) {
+fn get_frame_idx<T: AnimatedFrame>(anim_frame: &Vec<T>, frame: i32, speed: i32) -> (i32, i32) {
     let mut time: i32 = 0;
     let mut i: i32 = 0;
     for f in anim_frame {
-        if frame < (time + f.duration) {
+        if frame < (time + (f.duration() * speed)) {
             return (i, frame - time);
         };
-        time += f.duration;
+        time += f.duration() * speed;
         i += 1;
     }
     (-1, -1)
