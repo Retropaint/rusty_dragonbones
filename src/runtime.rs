@@ -57,10 +57,22 @@ pub struct Transform {
 }
 
 #[derive(Deserialize, Clone)]
+pub struct MeshFrame {
+    vertices: Vec<f64>,
+    duration: i32,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct FFD {
+    pub name: String,
+    pub frame: Vec<MeshFrame>,
+}
+#[derive(Deserialize, Clone)]
 pub struct Animation {
     pub name: String,
     pub duration: i32,
     pub bone: Vec<AnimBone>,
+    pub ffd: Vec<FFD>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -149,6 +161,7 @@ pub struct Prop {
     pub tex_rot: f64,
 
     /// Mesh data
+    pub is_mesh: bool,
     pub verts: Vec<Vec2>,
     pub tris: Vec<Tri>,
     pub uvs: Vec<Vec2>,
@@ -277,9 +290,13 @@ pub fn animate(
         }
     }
 
-        // animate mesh
-
-        bi += 1;
+    for f in &root.armature[0].animation[anim_idx].ffd {
+        let lp = &props.clone();
+        let p = &mut props[idx_from_name(&f.name, lp) as usize];
+        let mesh_frame = &f.frame;
+        if mesh_frame.len() > 0 {
+            p.verts = animate_mesh(&mesh_frame, frame, p.clone(), speed);
+        }
     }
     props
 }
@@ -320,8 +337,15 @@ fn create_prop(bone: &Bone, tex: &Texture, armature: &Armature) -> Prop {
     let mut f_verts: Vec<Vec2> = vec![];
     let mut f_uvs: Vec<Vec2> = vec![];
     let mut f_tris: Vec<Tri> = vec![];
-    let mut i: i32 = 0;
-    if skin_slot.display.len() > 0 {
+    let is_mesh = {
+        if skin_slot.display.len() > 0 {
+            skin_slot.display[0].vertices.len() > 0
+        } else {
+            false
+        }
+    };
+    if is_mesh {
+        let mut i: i32 = 0;
         for v in &skin_slot.display[0].vertices {
             if i % 2 == 0 {
                 f_verts.push(Vec2 { x: *v, y: 0. });
@@ -360,6 +384,41 @@ fn create_prop(bone: &Bone, tex: &Texture, armature: &Armature) -> Prop {
             if ki == 3 {
                 ki = 0;
             }
+        }
+    } else {
+        // create basic mesh of 2 tris
+        //#[rustfmt::skip]
+        {
+            f_verts.push(Vec2 {
+                x: -this_tex.width as f64 / 2. as f64,
+                y: -this_tex.height as f64 / 2. as f64,
+            });
+            f_verts.push(Vec2 {
+                x: this_tex.width as f64 / 2. as f64,
+                y: -this_tex.height as f64 / 2. as f64,
+            });
+            f_verts.push(Vec2 {
+                x: -this_tex.width as f64 / 2. as f64,
+                y: this_tex.height as f64 / 2. as f64,
+            });
+            f_verts.push(Vec2 {
+                x: this_tex.width as f64 / 2. as f64,
+                y: this_tex.height as f64 / 2. as f64,
+            });
+            f_uvs.push(Vec2 { x: 0., y: 0. });
+            f_uvs.push(Vec2 { x: 1., y: 0. });
+            f_uvs.push(Vec2 { x: 0., y: 1. });
+            f_uvs.push(Vec2 { x: 1., y: 1. });
+            f_tris.push(Tri {
+                v1: 0,
+                v2: 1,
+                v3: 2,
+            });
+            f_tris.push(Tri {
+                v1: 1,
+                v2: 2,
+                v3: 3,
+            });
         }
     }
 
@@ -443,6 +502,56 @@ fn parent_of_slot(name: &String, slot: &Vec<Slot>) -> i32 {
         i += 1;
     }
     return -1;
+}
+
+// animate mesh verts
+fn animate_mesh(mesh_frame: &Vec<MeshFrame>, frame: i32, prop: Prop, speed: i32) -> Vec<Vec2> {
+    let (frame_idx, curr_frame) = get_frame_idx(mesh_frame, frame, speed);
+
+    // return verts as is, if it's not animated
+    if mesh_frame[frame_idx as usize].vertices.len() == 0 {
+        return prop.verts;
+    }
+
+    let mut verts: Vec<Vec2> = vec![];
+    let mut i = 0;
+    for _ in &mesh_frame[frame_idx as usize].vertices {
+        let vert1 = mesh_frame[frame_idx as usize].vertices[i];
+        let vert2 = {
+            let v = &mesh_frame[frame_idx as usize + 1].vertices;
+            if v.len() > i {
+                v[i]
+            } else {
+                0.
+            }
+        };
+
+        #[rustfmt::skip]
+        let tween = Tweener::linear(vert1, vert2,
+            mesh_frame[frame_idx as usize].duration * speed)
+        .move_to(curr_frame) as f64;
+
+        if i % 2 == 0 {
+            verts.push(Vec2 {
+                x: prop.verts[i / 2].x + tween,
+                y: 0.,
+            });
+        } else {
+            verts[i / 2].y = prop.verts[i / 2].y + tween;
+        }
+
+        i += 1;
+    }
+
+    // fill in missing verts
+    while verts.len() != prop.verts.len() {
+        verts.push(Vec2 {
+            x: prop.verts[verts.len()].x,
+            y: prop.verts[verts.len()].y,
+        })
+    }
+
+    verts
 }
 
 // animate a frame that returns a Vec2
