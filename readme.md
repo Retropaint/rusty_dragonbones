@@ -36,6 +36,10 @@ for p in props {
 ```
 This is an oversimplified example. In practice, there'll need to be adjustments depending on the features and/or limitations of your environment.
 
+## Examples
+
+Check out the [DragonBones Macroquad](https://github.com/Retropaint/dragonbones_macroquad_demo/blob/main/readme.md) demo.
+
 ## Limitations
 All of the below will be addressed at some point, but there's no roadmap and this list is not in order of priority, and is not exhaustive.
 
