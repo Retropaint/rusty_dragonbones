@@ -38,7 +38,7 @@ This is an oversimplified example. In practice, there'll need to be adjustments 
 
 ## Examples
 
-Check out the [DragonBones Macroquad](https://github.com/Retropaint/dragonbones_macroquad_demo/blob/main/readme.md) demo.
+Check out the [DragonBones Macroquad](https://github.com/Retropaint/dragonbones_macroquad_demo) demo.
 
 ## Limitations
 All of the below will be addressed at some point, but there's no roadmap and this list is not in order of priority, and is not exhaustive.
